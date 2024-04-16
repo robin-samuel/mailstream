@@ -1,6 +1,6 @@
 # MailStream
 
-MailStream is a Go library that provides an efficient interface to interact with IMAP servers. It enables the streaming of mail updates in real-time. This library is a wrapper around the [github.com/emersion/go-imap/v2](https://github.com/emersion/go-imap/v2) library, which provides the IMAP client implementation.
+MailStream is a Go library that provides an efficient interface to interact with IMAP servers. It enables the streaming of mail updates in real-time. This library is a wrapper around the [github.com/emersion/go-imap/v2](https://github.com/emersion/go-imap) library, which provides the IMAP client implementation.
 
 ## Features
 
