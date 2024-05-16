@@ -141,7 +141,7 @@ func (c *Client) WaitForUpdates(ctx context.Context) <-chan error {
 		defer close(done)
 
 		if c.mailboxHandler == nil {
-			c.mailboxHandler = make(chan imapclient.UnilateralDataMailbox)
+			c.mailboxHandler = make(chan imapclient.UnilateralDataMailbox, 1000)
 			defer close(c.mailboxHandler)
 		}
 
