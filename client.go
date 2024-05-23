@@ -4,7 +4,6 @@ import (
 	"context"
 	"mime"
 	"strconv"
-	"sync"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
@@ -17,9 +16,11 @@ type Client struct {
 	mailboxHandler chan imapclient.UnilateralDataMailbox
 	fetchHandler   chan imapclient.FetchMessageData
 
-	lock        sync.Mutex
-	subscribers []chan *Mail
-	numMessages uint32
+	listener       []chan *Mail
+	broadcast      chan *Mail
+	addListener    chan chan *Mail
+	removeListener chan (<-chan *Mail)
+	numMessages    uint32
 }
 
 type Config struct {
@@ -31,7 +32,11 @@ type Config struct {
 }
 
 func New(config Config) (*Client, error) {
-	c := &Client{}
+	c := &Client{
+		broadcast:      make(chan *Mail),
+		addListener:    make(chan chan *Mail),
+		removeListener: make(chan (<-chan *Mail)),
+	}
 
 	if config.Mailbox == "" {
 		config.Mailbox = "INBOX"
@@ -82,6 +87,7 @@ func New(config Config) (*Client, error) {
 	}
 
 	c.client = client
+	go c.serve()
 	return c, nil
 }
 
@@ -89,21 +95,44 @@ func (c *Client) Close() error {
 	return c.client.Close()
 }
 
-func (c *Client) Subscribe(ch chan *Mail) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.subscribers = append(c.subscribers, ch)
-}
-
-func (c *Client) Unsubscribe(ch chan *Mail) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	for i, subscribers := range c.subscribers {
-		if subscribers == ch {
-			c.subscribers = append(c.subscribers[:i], c.subscribers[i+1:]...)
-			break
+func (c *Client) serve() {
+	defer func() {
+		for _, listener := range c.listener {
+			close(listener)
+		}
+	}()
+	for {
+		select {
+		case listener := <-c.addListener:
+			c.listener = append(c.listener, listener)
+		case listener := <-c.removeListener:
+			for i, l := range c.listener {
+				if l == listener {
+					c.listener = append(c.listener[:i], c.listener[i+1:]...)
+					break
+				}
+			}
+		case mail, ok := <-c.broadcast:
+			if !ok {
+				return
+			}
+			for _, listener := range c.listener {
+				if listener != nil {
+					listener <- mail
+				}
+			}
 		}
 	}
+}
+
+func (c *Client) Subscribe() <-chan *Mail {
+	listener := make(chan *Mail, 10)
+	c.addListener <- listener
+	return listener
+}
+
+func (c *Client) Unsubscribe(ch <-chan *Mail) {
+	c.removeListener <- ch
 }
 
 func (c *Client) GetUnseenMails() <-chan error {
@@ -206,11 +235,7 @@ func (c *Client) fetch(seq imap.SeqSet) error {
 		if err != nil {
 			return err
 		}
-		c.lock.Lock()
-		for _, ch := range c.subscribers {
-			ch <- mail
-		}
-		c.lock.Unlock()
+		c.broadcast <- mail
 	}
 
 	return nil

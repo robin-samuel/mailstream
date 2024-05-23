@@ -22,8 +22,7 @@ func main() {
 	defer client.Close()
 
 	// Create a channel to receive mail updates by subscribing to the client
-	ch := make(chan *mailstream.Mail)
-	client.Subscribe(ch)
+	listener := client.Subscribe()
 
 	// Tell the client to start listening for mail updates
 	done := client.WaitForUpdates(context.Background())
@@ -31,7 +30,7 @@ func main() {
 	// We run forever, printing mail updates as they come
 	for {
 		select {
-		case mail := <-ch:
+		case mail := <-listener:
 			fmt.Println(mail.Subject)
 		case err := <-done:
 			log.Fatal(err)

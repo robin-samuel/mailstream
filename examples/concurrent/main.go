@@ -29,11 +29,10 @@ func main() {
 	go func() {
 		defer wg.Done()
 		// Create a channel to receive mail updates by subscribing to the client.
-		ch := make(chan *mailstream.Mail)
-		client.Subscribe(ch)
-		defer client.Unsubscribe(ch)
+		listener := client.Subscribe()
+		defer client.Unsubscribe(listener)
 		// Wait for exactly one mail to be received.
-		mail := <-ch
+		mail := <-listener
 		fmt.Printf("Task 1 - Received mail: %s\n", mail.Subject)
 	}()
 
@@ -41,11 +40,10 @@ func main() {
 	go func() {
 		defer wg.Done()
 		// Create a channel to receive mail updates by subscribing to the client.
-		ch := make(chan *mailstream.Mail)
-		client.Subscribe(ch)
-		defer client.Unsubscribe(ch)
+		listener := client.Subscribe()
+		defer client.Unsubscribe(listener)
 		// Wait for exactly one mail to be received.
-		mail := <-ch
+		mail := <-listener
 		fmt.Printf("Task 2 - Received mail: %s\n", mail.Subject)
 	}()
 

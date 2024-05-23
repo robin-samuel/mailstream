@@ -53,13 +53,10 @@ func main() {
     }
     defer client.Close()
 
-    ch := make(chan *mailstream.Mail)
-    client.Subscribe(ch)
-    done := client.WaitForUpdates(context.Background())
-
+    listener := client.Subscribe()
     for {
         select {
-        case mail := <-ch:
+        case mail := <-listener:
             fmt.Println(mail.Subject)
         case err := <-done:
             log.Fatal(err)
@@ -104,19 +101,17 @@ func main() {
 
 	go func() {
 		defer wg.Done()
-		ch := make(chan *mailstream.Mail)
-		client.Subscribe(ch)
-		defer client.Unsubscribe(ch)
-		mail := <-ch
+		listener := client.Subscribe()
+		defer client.Unsubscribe(listener)
+		mail := <-listener
 		fmt.Printf("Task 1 - Received mail: %s\n", mail.Subject)
 	}()
 
 	go func() {
 		defer wg.Done()
-		ch := make(chan *mailstream.Mail)
-		client.Subscribe(ch)
-		defer client.Unsubscribe(ch)
-		mail := <-ch
+		listener := client.Subscribe()
+		defer client.Unsubscribe(listener)
+		mail := <-listener
 		fmt.Printf("Task 2 - Received mail: %s\n", mail.Subject)
 	}()
 
