@@ -136,12 +136,16 @@ func (c *Client) Unsubscribe(ch <-chan *Mail) {
 }
 
 func (c *Client) GetUnseenMails() <-chan error {
+	criteria := &imap.SearchCriteria{
+		NotFlag: []imap.Flag{imap.FlagSeen},
+	}
+	return c.Search(criteria)
+}
+
+func (c *Client) Search(criteria *imap.SearchCriteria) <-chan error {
 	done := make(chan error)
 
 	go func() {
-		criteria := &imap.SearchCriteria{
-			NotFlag: []imap.Flag{imap.FlagSeen},
-		}
 		data, err := c.client.Search(criteria, nil).Wait()
 		if err != nil {
 			done <- err
