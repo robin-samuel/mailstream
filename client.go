@@ -219,27 +219,33 @@ func (c *Client) WaitForUpdates(ctx context.Context) <-chan error {
 }
 
 func (c *Client) fetch(seq imap.SeqSet) error {
-	fetchCmd := c.client.Fetch(seq, &imap.FetchOptions{
-		BodyStructure: &imap.FetchItemBodyStructure{Extended: false},
-		Envelope:      true,
-		Flags:         true,
-		InternalDate:  true,
-		RFC822Size:    true,
-		UID:           true,
-		BodySection:   []*imap.FetchItemBodySection{{}},
-	})
+	nums, _ := seq.Nums()
+	for _, num := range nums {
+		subSeq := new(imap.SeqSet)
+		subSeq.AddNum(num)
 
-	messages, err := fetchCmd.Collect()
-	if err != nil {
-		return err
-	}
+		fetchCmd := c.client.Fetch(subSeq, &imap.FetchOptions{
+			BodyStructure: &imap.FetchItemBodyStructure{Extended: false},
+			Envelope:      true,
+			Flags:         true,
+			InternalDate:  true,
+			RFC822Size:    true,
+			UID:           true,
+			BodySection:   []*imap.FetchItemBodySection{{}},
+		})
 
-	for _, message := range messages {
-		mail, err := buildMail(message)
+		messages, err := fetchCmd.Collect()
 		if err != nil {
 			return err
 		}
-		c.broadcast <- mail
+
+		for _, message := range messages {
+			mail, err := buildMail(message)
+			if err != nil {
+				return err
+			}
+			c.broadcast <- mail
+		}
 	}
 
 	return nil
