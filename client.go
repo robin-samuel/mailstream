@@ -221,7 +221,7 @@ func (c *Client) WaitForUpdates(ctx context.Context) <-chan error {
 func (c *Client) fetch(seq imap.SeqSet) error {
 	nums, _ := seq.Nums()
 	for _, num := range nums {
-		subSeq := new(imap.SeqSet)
+		var subSeq imap.SeqSet
 		subSeq.AddNum(num)
 
 		fetchCmd := c.client.Fetch(subSeq, &imap.FetchOptions{
