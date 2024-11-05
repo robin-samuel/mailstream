@@ -2,8 +2,10 @@ package mailstream
 
 import (
 	"context"
+	"errors"
 	"mime"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
@@ -21,6 +23,8 @@ type Client struct {
 	addListener    chan chan *Mail
 	removeListener chan (<-chan *Mail)
 	numMessages    uint32
+
+	waiting atomic.Bool
 }
 
 type Config struct {
@@ -31,6 +35,9 @@ type Config struct {
 	Mailbox  string
 }
 
+// New creates a new mail client with the given configuration.
+// The client will connect to the server and login with the given credentials.
+// The client will start listening for new mails in the INBOX if no mailbox is specified.
 func New(config Config) (*Client, error) {
 	c := &Client{
 		broadcast:      make(chan *Mail),
@@ -125,16 +132,23 @@ func (c *Client) serve() {
 	}
 }
 
+// Subscribe returns a channel that will receive new mails as they arrive.
+// It is the caller's responsibility to unsubscribe from the channel when done.
+// IMPORTANT: If the caller does not read from the channel, the client will block.
 func (c *Client) Subscribe() <-chan *Mail {
 	listener := make(chan *Mail, 10)
 	c.addListener <- listener
 	return listener
 }
 
+// Unsubscribe removes the given channel from the client's list of listeners.
+// The channel will no longer receive new mails.
 func (c *Client) Unsubscribe(ch <-chan *Mail) {
 	c.removeListener <- ch
 }
 
+// GetUnseenMails will search for all unseen mails in the mailbox.
+// The mails will be fetched and sent to the client's listeners.
 func (c *Client) GetUnseenMails() <-chan error {
 	criteria := &imap.SearchCriteria{
 		NotFlag: []imap.Flag{imap.FlagSeen},
@@ -142,6 +156,8 @@ func (c *Client) GetUnseenMails() <-chan error {
 	return c.Search(criteria)
 }
 
+// Search will search for mails in the mailbox that match the given criteria.
+// The mails will be fetched and sent to the client's listeners.
 func (c *Client) Search(criteria *imap.SearchCriteria) <-chan error {
 	done := make(chan error)
 
@@ -167,11 +183,19 @@ func (c *Client) Search(criteria *imap.SearchCriteria) <-chan error {
 	return done
 }
 
+// WaitForUpdates will wait for new mails to arrive in the mailbox.
+// The client will notify its listeners when new mails arrive.
 func (c *Client) WaitForUpdates(ctx context.Context) <-chan error {
 	done := make(chan error)
 
 	go func() {
 		defer close(done)
+
+		if !c.waiting.CompareAndSwap(false, true) {
+			done <- errors.New("already waiting for updates")
+			return
+		}
+		defer c.waiting.Store(false)
 
 		if c.mailboxHandler == nil {
 			c.mailboxHandler = make(chan imapclient.UnilateralDataMailbox, 1000)
