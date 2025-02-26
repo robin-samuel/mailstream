@@ -24,9 +24,10 @@ type Mail struct {
 
 func buildMail(message *imapclient.FetchMessageBuffer) (*Mail, error) {
 	var body []byte
-	for sec, val := range message.BodySection {
-		if sec.Specifier == imap.PartSpecifierNone {
-			body = val
+	for _, part := range message.BodySection {
+		if part.Section.Specifier == imap.PartSpecifierNone {
+			body = part.Bytes
+			break
 		}
 	}
 	mr, err := mail.CreateReader(bytes.NewReader(body))
