@@ -221,11 +221,6 @@ func (c *Client) WaitForUpdates(ctx context.Context) <-chan error {
 					return
 				}
 
-				if err := idle.Wait(); err != nil {
-					done <- err
-					return
-				}
-
 				if c.numMessages < *md.NumMessages {
 					var seq imap.SeqSet
 					seq.AddRange(c.numMessages+1, *md.NumMessages)
